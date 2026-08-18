@@ -80,6 +80,50 @@ declare -A firmw_hashes=(
   ["$hash_fw_osx_560"]='5.60.0'
 )
 
+# Known AppleCameraAssistant hashes. The assistant is the helper binary of the
+# userspace camera plugin; it carries the sensor calibration ("set") files,
+# which are not in the kext and only partially in the Boot Camp driver.
+hash_asst_osx_560='af6a9de00472657e925f546753c818f9e33636030892b14ca96a1b4817ea58c7'
+
+declare -A known_asst_hashes=(
+  ["$hash_asst_osx_560"]='macOS, Sierra 10.12.6'
+)
+
+# Set files inside the 10.12.6 AppleCameraAssistant, as "offset size".
+# Extraction order for display purposes only.
+setfile_names_560='9112 1771 1871 1874 1222 8221 1571 1575 1674 1675 1671'
+
+declare -A setfile_offsets_560=(
+  [9112]='217088 33060'
+  [1771]='253952 19040'
+  [1871]='274432 19040'
+  [1874]='294912 19040'
+  [1222]='315392 20076'
+  [8221]='335872 30240'
+  [1571]='368640 18652'
+  [1575]='389120 18652'
+  [1674]='409600 18044'
+  [1675]='430080 18044'
+  [1671]='450560 18044'
+)
+
+# 9112/1771/1871/1874 are byte-identical to the files facetimehd-data extracts
+# from the Boot Camp driver, which is what validates the offsets above; the
+# other seven exist only in macOS. 1675 is verified on a MacBook10,1.
+declare -A setfile_hashes_560=(
+  [9112]='4dd756fa8460d8dc3d78d0d76944b2f92275d1fe9c83181bbc8292c81c005f1a'
+  [1771]='756c2bb7c5e55b395449e43a0be1cb7c40c37dfc6c2b5abfaffb8ae70ff0fc4b'
+  [1871]='bf36fbde0668ab7e44368b584f9fa64b5945b01003d04c6e3c6f22c0be0fd5f3'
+  [1874]='ffde89e7819ac16a9eb1c8f0bc6dba0e980b508b2022507679d901c190f7cef8'
+  [1222]='04a6aa0d67c0353505a56187c573b27dfdef703dfb4b98329b1ee74f59e4ba7e'
+  [8221]='2e041686cf2484345b08b18207266abe725f41f8869e04d427aa092071d9edde'
+  [1571]='0f73f550b65121115fe0b999f016fb3be3d109057597863df9fe01fd4678c300'
+  [1575]='31068eab65ba25a480fd4d0463e86f8e2807828a2e251a20b6f107499e0f7936'
+  [1674]='32377ac603d764f33f1466b5e4a7e3e08780d7becc50ad5b00292e29e2dd0374'
+  [1675]='b7a38aef2755721bb28c92d84a15654b17e9fb3b0a0f088a384a981fc8fe16d6'
+  [1671]='0b90133936bf0bbcdde4b85df8d3fc18722b58d2f8a1afc2564c6c242b6c57fa'
+)
+
 printHelp()
 {
   cat <<HELP_DOC
@@ -96,6 +140,10 @@ OPTION:
                       binary header and footer of the extracted firmeare.
 
   -x DRV_FILE         Extract the firmware from the driver DRV_FILE
+
+  -s ASST_FILE        Extract the eleven sensor calibration set files
+                      (NNNN_01XX.dat) from the AppleCameraAssistant binary
+                      ASST_FILE.
 
 NOTES:
 
@@ -116,6 +164,17 @@ NOTES:
   "sensor count: 0" with "Sensor is null after hNVStorage Validate".
   Extract 5.60.0 with -x from an AppleCameraInterface taken out of a
   10.12.6 install or update package.
+
+  Besides the firmware, the camera needs a per-sensor calibration ("set")
+  file. The Boot Camp driver that facetimehd-data extracts from carries only
+  four of the eleven; all eleven are embedded in AppleCameraAssistant, found
+  in a macOS installation under
+  /Library/CoreMediaIO/Plug-Ins/DAL/AppleCamera.plugin/Contents/Resources/
+  Extract them with -s. The 12-inch MacBook needs 1675_01XX.dat, which
+  exists only there.
+
+  Both binaries can also be downloaded and installed directly from Apple's
+  update servers by facetimehd-firmware-install.sh or 'make'.
 
 HELP_DOC
 }
@@ -301,6 +360,45 @@ extract_from_osx()
   fi
 }
 
+checkAssistantHash()
+{
+  # computing the hash for the input file
+  asst_hash="$(getCheckSum $1)"
+
+  # checking if it is among the known hashes
+  for cur_hash in "${!known_asst_hashes[@]}"; do
+    if [[ "$asst_hash" == "$cur_hash" ]]; then
+      echo "Found matching hash from ${known_asst_hashes[$cur_hash]}"
+      return
+    fi
+  done
+
+  err "Mismatching AppleCameraAssistant hash for $1"
+  err "The unknown hash is ${asst_hash}"
+  err "No set files extracted!"
+  exit 1
+}
+
+extract_setfiles()
+{
+  echo ""
+  checkAssistantHash "$1"
+
+  msg "Extracting sensor set files..."
+  local name offset size
+  for name in $setfile_names_560; do
+    read -r offset size <<< "${setfile_offsets_560[$name]}"
+    dd bs=1 skip=$offset count=$size if="$1" of="${name}_01XX.dat" &> /dev/null
+
+    if [[ "$(getCheckSum ${name}_01XX.dat)" != "${setfile_hashes_560[$name]}" ]]; then
+      err "Mismatching hash for ${name}_01XX.dat"
+      err "No set files extracted!"
+      exit 1
+    fi
+    msg2 "Extracted ${name}_01XX.dat"
+  done
+}
+
 main()
 {
   echo ""
@@ -320,6 +418,10 @@ main()
         drv_file="$2"
         shift
         ;;
+      -s)
+        asst_file="$2"
+        shift
+        ;;
       -i|--ignore-hashes)
         skip_sums="1"
     esac
@@ -330,13 +432,17 @@ main()
 
   if [[ ! -z "$dmg_file" ]]; then
     checkDmgPrerequisites
-    decompress_dmg "$dmg_file" 
+    decompress_dmg "$dmg_file"
   fi
 
   cd "${_main_dir}"
 
   if [[ ! -z "$drv_file" ]]; then
     extract_from_osx "$drv_file"
+  fi
+
+  if [[ ! -z "$asst_file" ]]; then
+    extract_setfiles "$asst_file"
   fi
 
   echo ""
