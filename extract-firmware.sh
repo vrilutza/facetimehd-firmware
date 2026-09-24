@@ -248,13 +248,13 @@ checkPrerequisites()
 
 getCheckSum()
 {
-  sha256sum $1 | awk '{ print $1 }'
+  sha256sum "$1" | awk '{ print $1 }'
 }
 
 checkDriverHash()
 {
   # computing the hash for the input file
-  driver_hash="$(getCheckSum $1)"
+  driver_hash="$(getCheckSum "$1")"
 
   # checking if it is among the known hashes
   for cur_hash in "${!known_hashes[@]}"; do
@@ -273,7 +273,7 @@ checkDriverHash()
 checkFirmwareHash()
 {
   # computing the hash for the input file
-  fw_hash="$(getCheckSum $1)"
+  fw_hash="$(getCheckSum "$1")"
 
   # checking if it is among the known hashes
   for cur_hash in "${!firmw_hashes[@]}"; do
@@ -312,7 +312,7 @@ checkFirmwareHexdump()
 extractFirmware()
 {
   msg "Extracting firmware..."
-  dd bs=1 skip=$3 count=$4 if=$1 of="$2.tmp" &> /dev/null
+  dd bs=1 skip="$3" count="$4" if="$1" of="$2.tmp" &> /dev/null
 
   msg2 "Decompressing the firmware using $5..."
   case "$5" in
@@ -334,7 +334,7 @@ decompress_dmg()
 
   msg2 "Creating temporary directories..."
   mkdir -p "${_main_dir}/temp"
-  cd "${_main_dir}/temp"
+  cd "${_main_dir}/temp" || exit 1
 
   msg2 "Decompressing the image..."
   7z e -y "${_main_dir}/$1" "5.hfs" > /dev/null
@@ -352,7 +352,7 @@ decompress_dmg()
   rm "OSXUpd10.11.3.pkg/Payload"
 
   msg2 "Decompressing archives..."
-  cd "OSXUpd10.11.3.pkg"
+  cd "OSXUpd10.11.3.pkg" || exit 1
   find . -name "Payload.part*.xz" -exec xz --decompress --verbose {} \;
   cat "Payload.part"* | cpio -id &> /dev/null
   cp "./System/Library/Extensions/AppleCameraInterface.kext/Contents/MacOS/AppleCameraInterface" \
@@ -446,7 +446,7 @@ main()
   echo ""
 
   # Parsing arguments
-  while [[ $# > 0 ]]; do
+  while [[ $# -gt 0 ]]; do
     case $1 in
       -h|--help)
         printHelp
@@ -477,7 +477,7 @@ main()
     decompress_dmg "$dmg_file"
   fi
 
-  cd "${_main_dir}"
+  cd "${_main_dir}" || exit 1
 
   if [[ ! -z "$drv_file" ]]; then
     extract_from_osx "$drv_file"
