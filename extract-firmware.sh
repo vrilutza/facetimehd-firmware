@@ -430,6 +430,10 @@ extract_setfiles()
 
     if [[ "$(getCheckSum "${name}_01XX.dat")" != "${setfile_hashes[$name]}" ]]; then
       err "Mismatching hash for ${name}_01XX.dat"
+      local n
+      for n in $setfile_names; do
+        rm -f "${n}_01XX.dat"
+      done
       err "No set files extracted!"
       exit 1
     fi
