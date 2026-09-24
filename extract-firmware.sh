@@ -283,7 +283,7 @@ checkFirmwareHash()
     fi
   done
 
-  err "Mismatching firmware hash ${firm_hash}"
+  err "Mismatching firmware hash ${fw_hash}"
   return 1
 }
 
@@ -379,7 +379,7 @@ extract_from_osx()
       exit 1
     else
       msg2 "Ignoring hashes and check the firmware header..."
-      checkFirmwareHexdump "firmware.bin" then
+      checkFirmwareHexdump "firmware.bin"
     fi
   fi
 }
