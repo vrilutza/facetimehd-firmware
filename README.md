@@ -24,5 +24,29 @@ versions over the same inputs and comparing the output byte for byte.
 Usage is unchanged from upstream: `make` downloads and extracts, `-x` takes a driver binary, `-s`
 takes a set file source, `make install` puts everything in `/lib/firmware/facetimehd/`.
 
+Which firmware you get
+----------------------
+
+No firmware or calibration file is in this repository, and none can be: they are Apple's binaries.
+The tool fetches them from Apple's servers with ranged requests and verifies every extracted file
+against a known hash.
+
+`make` defaults to **5.60.0** (the firmware identifies itself as `S2ISP-01.57.00`), which is
+upstream's default too. `make FW_VER=1.43.0` fetches the older one instead.
+
+On a MacBookPro14,1 both work, keep the same formats and sizes, and load the same `1571_01XX.dat`
+calibration. They differ in how the image is processed. Measured on a static scene in low light,
+three interleaved rounds of 160 frames each, at the same exposure:
+
+| | 1.43.0 | 5.60.0 |
+|---|---|---|
+| temporal noise | 5.01 | **2.11** (−58 %) |
+| detail, noise-free estimate | **6.24** | 4.19 (−33 %) |
+| detail / noise | 1.25 | **1.99** (+60 %) |
+
+So 5.60.0 is not simply better: it removes more than half the noise but loses a third of the real
+detail. Cleaner and softer against grainier and sharper. Pick whichever you prefer — it is one
+command either way, and both files can sit side by side in `/lib/firmware/facetimehd/`.
+
 ---
 
