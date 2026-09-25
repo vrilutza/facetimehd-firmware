@@ -24,6 +24,26 @@ versions over the same inputs and comparing the output byte for byte.
 Usage is unchanged from upstream: `make` downloads and extracts, `-x` takes a driver binary, `-s`
 takes a set file source, `make install` puts everything in `/lib/firmware/facetimehd/`.
 
+Installing
+----------
+
+On Debian and derivatives; adapt the package names elsewhere.
+
+```
+sudo apt install build-essential curl xz-utils cpio
+git clone https://github.com/vrilutza/facetimehd-firmware.git
+cd facetimehd-firmware
+make
+sudo make install
+```
+
+`make` downloads what it needs from Apple's servers with ranged requests, extracts the firmware and
+the eleven calibration files, and checks every one against a known hash. `make install` copies them
+into `/lib/firmware/facetimehd/`.
+
+If you already have the binaries locally, skip the download: `./extract-firmware.sh -x <driver>`
+takes an `AppleCameraInterface` or `AppleCamera.sys`, and `-s <file>` takes a set file source.
+
 Which firmware you get
 ----------------------
 
